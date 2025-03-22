@@ -28,10 +28,6 @@ const BACKEND_API = {
     summaryEndpoint: '/api/summary',
     searchEndpoint: '/api/search'
 };
-// 当前AI总结请求的控制器
-let currentSummaryController = null;
-// 当前搜索请求的控制器
-let currentSearchController = null;
 // 搜索防抖计时器
 let searchDebounceTimer = null;
 
@@ -339,14 +335,17 @@ function updateActiveLink() {
  */
 function handleRouteChange() {
     const articleContainer = document.getElementById('article-container');
+    const aiSummaryContent = document.getElementById('ai-summary-content');
+    
     articleContainer.innerHTML = '<div class="loading">加载中...</div>';
     
     // 重置编辑状态
     isEditing = false;
     articleContainer.classList.remove('editable');
     
-    // 重置AI总结
-    resetAISummary();
+    // 隐藏AI总结区域
+    aiSummaryContent.classList.add('hidden');
+    aiSummaryContent.innerHTML = '';
     
     // 更新活动链接样式
     updateActiveLink();
@@ -378,23 +377,6 @@ function handleRouteChange() {
         loadMarkdownFile(fileName);
         currentFilePath = fileName;
     }
-}
-
-/**
- * 重置AI总结
- */
-function resetAISummary() {
-    const summaryContent = document.getElementById('ai-summary-content');
-    
-    // 取消正在进行的AI总结请求
-    if (currentSummaryController) {
-        currentSummaryController.abort();
-        currentSummaryController = null;
-    }
-    
-    // 隐藏总结内容区域
-    summaryContent.classList.add('hidden');
-    summaryContent.innerHTML = '';
 }
 
 /**
@@ -498,152 +480,90 @@ function renderMarkdown(markdownContent) {
 }
 
 /**
- * 自动生成页面总结
+ * 自动生成内容总结
  */
 function autoGenerateSummary() {
-    const summaryContent = document.getElementById('ai-summary-content');
+    const articleContainer = document.getElementById('article-container');
+    const aiSummaryContent = document.getElementById('ai-summary-content');
     
-    try {
-        // 获取当前文章内容
-        const articleContent = document.getElementById('article-container').innerText;
-        
-        if (articleContent.trim().length === 0) {
-            return; // 如果内容为空，不进行总结
-        }
-        
-        // 显示总结内容区域
-        summaryContent.classList.remove('hidden');
-        summaryContent.innerHTML = '<span class="ai-loading">AI正在总结</span>';
-        
-        // 取消之前的请求
-        if (currentSummaryController) {
-            currentSummaryController.abort();
-        }
-        
-        // 创建新的AbortController
-        currentSummaryController = new AbortController();
-        const signal = currentSummaryController.signal;
-        
-        // 发送到后端进行总结，传入信号
-        fetchSummaryFromBackend(articleContent, signal);
-        
-    } catch (error) {
-        console.error('AI总结失败:', error);
-        if (error.name !== 'AbortError') {
-            summaryContent.innerHTML = '<span class="error">AI总结失败</span>';
-        }
+    // 如果是编辑模式，不生成总结
+    if (isEditing) {
+        return;
     }
+    
+    // 获取文章内容
+    const articleContent = articleContainer.innerText;
+    
+    // 如果内容太短则不生成总结
+    if (articleContent.length < 100) {
+        return;
+    }
+    
+    // 显示总结界面
+    aiSummaryContent.innerHTML = '<div class="summary-loading">生成中...</div>';
+    aiSummaryContent.classList.remove('hidden');
+    
+    // 请求总结生成
+    fetchSummaryFromBackend(articleContent)
+        .then(summary => {
+            aiSummaryContent.innerHTML = summary;
+            aiSummaryContent.classList.remove('hidden');
+        })
+        .catch(error => {
+            console.error('AI总结失败:', error);
+            aiSummaryContent.innerHTML = '<div class="summary-error">总结生成失败</div>';
+        });
 }
 
 /**
- * 从后端获取总结
- * @param {string} content - 要总结的内容
- * @param {AbortSignal} signal - 用于取消请求的信号
+ * 从后端请求AI总结
+ * @param {string} content - 需要总结的内容
+ * @returns {Promise<string>} - 返回AI总结的内容
  */
-async function fetchSummaryFromBackend(content, signal) {
-    const summaryContent = document.getElementById('ai-summary-content');
+function fetchSummaryFromBackend(content) {
+    console.log('发送内容到后端，长度:', content.length);
     
-    try {
-        // 准备请求数据
-        const requestURL = `${BACKEND_API.baseURL}${BACKEND_API.summaryEndpoint}`;
+    return new Promise((resolve, reject) => {
+        // 显示进度提示
+        const aiSummaryContent = document.getElementById('ai-summary-content');
+        aiSummaryContent.innerHTML = '<div class="summary-loading">AI正在思考中...</div>';
+        aiSummaryContent.classList.remove('hidden');
         
-        // 发送请求到后端
-        const response = await fetch(requestURL, {
+        // 构建API请求
+        const apiURL = `${BACKEND_API.baseURL}${BACKEND_API.summaryEndpoint}`;
+        console.log('请求URL:', apiURL);
+        
+        // 发送POST请求到后端
+        fetch(apiURL, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ content: content }),
-            signal: signal // 添加信号以支持取消
-        });
-        
-        if (!response.ok) {
-            throw new Error(`后端请求失败: ${response.status}`);
-        }
-        
-        // 处理流式响应
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let summaryText = '';
-        
-        // 清空内容区域
-        summaryContent.innerHTML = '';
-        
-        // 读取流
-        while (true) {
-            // 检查是否已被取消
-            if (signal.aborted) {
-                break;
+            body: JSON.stringify({ content: content })
+        })
+        .then(response => {
+            if (!response.ok) {
+                console.error('后端请求失败:', response.status);
+                throw new Error(`后端请求失败: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.error) {
+                throw new Error(`AI API错误: ${data.error}`);
             }
             
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            // 解码收到的数据
-            const chunk = decoder.decode(value, { stream: true });
-            
-            // 处理返回的数据块
-            const lines = chunk.split('\n\n').filter(line => line.trim() !== '');
-            
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const data = line.slice(6);
-                    
-                    // 处理结束标记
-                    if (data === '[DONE]') {
-                        // 总结完成，清除控制器
-                        currentSummaryController = null;
-                        break;
-                    }
-                    
-                    try {
-                        // 检查是否有错误信息
-                        if (data.includes('"error"')) {
-                            const errorJson = JSON.parse(data);
-                            if (errorJson.error) {
-                                throw new Error(errorJson.error);
-                            }
-                        }
-                        
-                        // 检查请求是否已被取消
-                        if (signal.aborted) {
-                            break;
-                        }
-                        
-                        const json = JSON.parse(data);
-                        const content = json.choices[0]?.delta?.content || '';
-                        
-                        if (content) {
-                            summaryText += content;
-                            summaryContent.innerHTML = formatSummary(summaryText);
-                        }
-                    } catch (e) {
-                        console.error('解析响应失败:', e);
-                        if (e.message !== 'Unexpected end of JSON input') {
-                            summaryContent.innerHTML = '<span class="error">AI总结失败</span>';
-                        }
-                    }
-                }
+            if (data.summary) {
+                resolve(data.summary);
+            } else {
+                throw new Error('无法获取AI总结');
             }
-        }
-        
-    } catch (error) {
-        // 只有非取消错误才抛出
-        if (error.name !== 'AbortError') {
+        })
+        .catch(error => {
             console.error('AI总结失败:', error);
-            summaryContent.innerHTML = '<span class="error">AI总结失败</span>';
-        }
-    }
-}
-
-/**
- * 格式化总结内容
- * @param {string} text - 原始总结文本
- * @returns {string} - 格式化后的HTML
- */
-function formatSummary(text) {
-    // 直接返回文本，不添加段落标签
-    return text;
+            reject(error);
+        });
+    });
 }
 
 /**
@@ -691,112 +611,69 @@ function initSearchFeature() {
 }
 
 /**
- * 执行搜索
- * @param {string} query - 搜索关键词
+ * 执行搜索功能
+ * @param {string} query - 查询字符串
  */
-async function performSearch(query) {
+function performSearch(query) {
     const searchResults = document.getElementById('search-results');
     
-    // 显示加载中状态
-    searchResults.innerHTML = '<div class="search-result-item">正在搜索...</div>';
-    searchResults.classList.remove('hidden');
-    
-    // 取消之前的请求
-    if (currentSearchController) {
-        currentSearchController.abort();
-    }
-    
-    // 创建新的请求控制器
-    currentSearchController = new AbortController();
-    const signal = currentSearchController.signal;
-    
-    try {
-        // 构建请求URL
-        const url = `${BACKEND_API.baseURL}${BACKEND_API.searchEndpoint}?query=${encodeURIComponent(query)}`;
-        console.log(`执行搜索，URL: ${url}`);
-        
-        // 发起请求
-        const response = await fetch(url, { signal });
-        
-        if (!response.ok) {
-            throw new Error(`搜索请求失败: ${response.status}`);
-        }
-        
-        const results = await response.json();
-        console.log('搜索结果:', results); // 调试信息
-        
-        // 清空结果容器
+    if (!query || query.trim() === '') {
         searchResults.innerHTML = '';
-        
-        // 显示结果
-        if (results.length === 0) {
-            searchResults.innerHTML = '<div class="search-result-item">没有找到匹配的内容</div>';
-            console.log('没有找到匹配的内容');
-        } else {
-            console.log(`找到 ${results.length} 个匹配项`);
-            results.forEach(result => {
-                console.log(`处理搜索结果: 文件=${result.file}, 标题=${result.title}`);
-                
-                const resultItem = document.createElement('div');
-                resultItem.className = 'search-result-item';
-                
-                // 高亮显示匹配文本
-                const highlightedContext = highlightText(result.context, query);
-                
-                resultItem.innerHTML = `
-                    <div class="search-result-title">${result.title}</div>
-                    <div class="search-result-context">${highlightedContext}</div>
-                `;
-                
-                // 点击结果项跳转到对应文章
-                resultItem.addEventListener('click', function() {
-                    // 确保文件路径格式正确
-                    let filePath = result.file;
-                    
-                    console.log(`点击搜索结果，原始文件路径: ${filePath}`);
-                    
-                    // 处理文件扩展名
-                    if (filePath.toLowerCase().endsWith('.md')) {
-                        filePath = filePath.substring(0, filePath.length - 3);
-                    }
-                    
-                    const hashPath = `#/${filePath}`;
-                    console.log(`导航到: ${hashPath}`);
-                    
-                    window.location.hash = hashPath;
-                    searchResults.classList.add('hidden');
-                });
-                
-                searchResults.appendChild(resultItem);
-            });
-        }
-        
-        // 显示结果容器
-        searchResults.classList.remove('hidden');
-        
-    } catch (error) {
-        if (error.name !== 'AbortError') {
-            console.error('搜索失败:', error);
-            searchResults.innerHTML = `<div class="search-result-item">搜索失败: ${error.message}</div>`;
-            searchResults.classList.remove('hidden');
-        }
+        searchResults.classList.add('hidden');
+        return;
     }
-}
-
-/**
- * 高亮显示文本中的搜索关键词
- * @param {string} text - 原始文本
- * @param {string} query - 搜索关键词
- * @returns {string} - 高亮后的HTML
- */
-function highlightText(text, query) {
-    if (!query) return text;
     
-    // 转义正则表达式中的特殊字符
-    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(${escapedQuery})`, 'gi');
+    // 显示搜索结果区域
+    searchResults.classList.remove('hidden');
+    searchResults.innerHTML = '<div class="search-loading">搜索中...</div>';
     
-    return text.replace(regex, '<span class="search-highlight">$1</span>');
+    // 构建API URL
+    const searchUrl = `${BACKEND_API.baseURL}${BACKEND_API.searchEndpoint}?query=${encodeURIComponent(query)}`;
+    console.log('执行搜索，URL:', searchUrl);
+    
+    // 发送搜索请求
+    fetch(searchUrl)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`搜索请求失败: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.length === 0) {
+                searchResults.innerHTML = '<div class="no-results">未找到结果</div>';
+                return;
+            }
+            
+            // 构建搜索结果HTML
+            let resultsHtml = '<ul class="search-results-list">';
+            
+            data.forEach(result => {
+                resultsHtml += `
+                    <li class="search-result-item">
+                        <a href="#/${result.file.replace('.md', '')}" class="search-result-link">
+                            <h3>${result.title}</h3>
+                            <p>${result.context}</p>
+                        </a>
+                    </li>
+                `;
+            });
+            
+            resultsHtml += '</ul>';
+            searchResults.innerHTML = resultsHtml;
+            
+            // 为搜索结果添加点击事件
+            document.querySelectorAll('.search-result-link').forEach(link => {
+                link.addEventListener('click', function() {
+                    searchResults.classList.add('hidden');
+                    document.getElementById('search-input').value = '';
+                });
+            });
+        })
+        .catch(error => {
+            console.error('搜索失败:', error);
+            searchResults.innerHTML = '<div class="search-error">搜索失败</div>';
+        });
 }
 
 /**
