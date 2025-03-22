@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文章管理系统</title>
+    <!-- Google Fonts - Noto Serif Simplified Chinese -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Markdown解析器 -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/marked/15.0.6/marked.min.js"></script>
+    <!-- LaTeX支持 -->
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/KaTeX/0.16.9/katex.min.css">
+    <script src="https://cdn.bootcdn.net/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+    <!-- 代码高亮 -->
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/highlight.js/11.11.1/styles/github.min.css">
+    <script src="https://cdn.bootcdn.net/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+    <!-- 自定义样式 -->
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar" id="sidebar">
+            <div class="site-title" id="site-title">文章管理系统</div>
+            <div class="search-container">
+                <input type="text" id="search-input" placeholder="搜索文章..." autocomplete="off">
+                <div id="search-results" class="search-results hidden"></div>
+            </div>
+            <nav id="toc-nav">
+                <ul id="toc-list">
+                    <li class="loading">加载目录中...</li>
+                </ul>
+            </nav>
+        </div>
+        
+        <div class="content-area" id="content-area">
+            <div class="ai-summary-container">
+                <div id="ai-summary-content" class="ai-summary-content hidden"></div>
+            </div>
+            <div id="article-container" class="article-content">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+        
+        <div class="toggle-sidebar" id="toggle-sidebar">
+            <div class="toggle-icon">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html> 
