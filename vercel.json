@@ -32,12 +32,28 @@
       "dest": "backend/app.py"
     },
     {
+      "src": "/styles.css",
+      "dest": "/styles.css"
+    },
+    {
+      "src": "/favicon.svg",
+      "dest": "/favicon.svg"
+    },
+    {
+      "src": "/app.js",
+      "dest": "/app.js"
+    },
+    {
+      "src": "/(.*).md",
+      "dest": "/$1.md"
+    },
+    {
       "src": "^/(.+\\.(js|css|svg|png|jpg|jpeg|gif|ico|json))$",
       "dest": "/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "index.html"
+      "dest": "/index.html"
     }
   ],
   "env": {

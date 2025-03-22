@@ -196,18 +196,21 @@ function initSidebarToggle() {
  * 加载content.md文件获取目录和标题
  */
 function loadContentFile() {
-    fetch('content.md')
+    console.log('尝试加载content.md文件');
+    fetch('/content.md')
         .then(response => {
             if (!response.ok) {
+                console.error(`content.md加载失败，状态码: ${response.status}`);
                 throw new Error('content.md文件加载失败');
             }
             return response.text();
         })
         .then(content => {
+            console.log(`成功加载content.md，内容长度: ${content.length}`);
             parseContentFile(content);
         })
         .catch(error => {
-            console.error(error);
+            console.error(`content.md加载出错: ${error.message}`);
             document.getElementById('toc-list').innerHTML = `
                 <li class="error">目录加载失败：${error.message}</li>
             `;
@@ -350,12 +353,13 @@ function handleRouteChange() {
     
     // 获取当前路由，格式为 "#/filename"
     let hash = window.location.hash;
+    console.log(`当前路由: ${hash}`);
     
     // 如果没有路由或者是首页，默认加载 home.md
     if (!hash || hash === '#/' || hash === '#/home') {
         hash = '#/home';
-        loadMarkdownFile('home.md');
-        currentFilePath = 'home.md';
+        loadMarkdownFile('/home.md');
+        currentFilePath = '/home.md';
     } else {
         // 从路由中提取文件名
         let fileName = hash.substring(2);
@@ -365,6 +369,12 @@ function handleRouteChange() {
             fileName += '.md';
         }
         
+        // 确保文件名以/开头
+        if (!fileName.startsWith('/')) {
+            fileName = '/' + fileName;
+        }
+        
+        console.log(`准备加载文件: ${fileName}`);
         loadMarkdownFile(fileName);
         currentFilePath = fileName;
     }
@@ -392,14 +402,21 @@ function resetAISummary() {
  * @param {string} fileName - 文件名
  */
 function loadMarkdownFile(fileName) {
-    fetch(fileName)
+    // 确保文件名以/开头，确保绝对路径
+    const filePath = fileName.startsWith('/') ? fileName : `/${fileName}`;
+    
+    console.log(`尝试加载文件: ${filePath}`);
+    
+    fetch(filePath)
         .then(response => {
             if (!response.ok) {
+                console.error(`文件加载失败，状态码: ${response.status}`);
                 throw new Error(`文件加载失败: ${fileName}`);
             }
             return response.text();
         })
         .then(markdownContent => {
+            console.log(`成功加载文件，内容长度: ${markdownContent.length}`);
             renderMarkdown(markdownContent);
             // 当文章渲染完成后，自动进行总结
             setTimeout(() => {
@@ -407,7 +424,7 @@ function loadMarkdownFile(fileName) {
             }, 500); // 延迟500ms确保文章内容已完全渲染
         })
         .catch(error => {
-            console.error(error);
+            console.error(`加载文件出错: ${error.message}`);
             document.getElementById('article-container').innerHTML = `
                 <div class="error">
                     <h2>加载失败</h2>
