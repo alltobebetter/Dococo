@@ -24,7 +24,7 @@ let currentFilePath = '';
 let isEditing = false;
 // 后端API地址
 const BACKEND_API = {
-    baseURL: 'http://localhost:5000',
+    baseURL: '',  // 空字符串表示使用相对路径
     summaryEndpoint: '/api/summary',
     searchEndpoint: '/api/search'
 };
